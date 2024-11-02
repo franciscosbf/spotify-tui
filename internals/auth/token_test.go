@@ -35,8 +35,10 @@ func TestFetchTokenAndRefreshToken(t *testing.T) {
 			t.Fatal("refresh token is empty")
 		}
 
-		if token.Expires == 0 {
-			t.Fatal("expire is zero")
+		expectedExpiresIn := time.Second * 3600
+		if token.ExpiresIn == expectedExpiresIn {
+			t.Fatalf("invalid expire time. got=%s, expected=%s",
+				token.ExpiresIn, expectedExpiresIn)
 		}
 	}
 

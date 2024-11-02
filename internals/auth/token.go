@@ -17,9 +17,9 @@ var (
 )
 
 type Token struct {
-	Access  string
-	Refresh string
-	Expires time.Duration
+	Access    string
+	Refresh   string
+	ExpiresIn time.Duration
 }
 
 type tokenResponse struct {
@@ -48,9 +48,9 @@ func requestToken(clientId string, parameters *url.Values) (Token, error) {
 	var tokenMeta tokenResponse
 	json.NewDecoder(response.Body).Decode(&tokenMeta)
 	token := Token{
-		Access:  tokenMeta.AccessToken,
-		Refresh: tokenMeta.RefreshToken,
-		Expires: time.Duration(tokenMeta.ExpiresIn),
+		Access:    tokenMeta.AccessToken,
+		Refresh:   tokenMeta.RefreshToken,
+		ExpiresIn: time.Second * time.Duration(tokenMeta.ExpiresIn),
 	}
 
 	return token, nil
