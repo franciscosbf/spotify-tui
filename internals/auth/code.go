@@ -13,13 +13,6 @@ import (
 	"github.com/franciscosbf/spotify-tui/internals/util"
 )
 
-var requiredScopes = []string{
-	"user-read-playback-state",
-	"user-modify-playback-state",
-	"user-read-currently-playing",
-	"playlist-read-private",
-}
-
 var (
 	ErrInvalidAuth = errors.New("invalid authentication")
 	ErrAuthTimeout = errors.New("authentication timed out")
