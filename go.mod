@@ -1,4 +1,4 @@
-module github.com/franciscosbf/spotifytui
+module github.com/franciscosbf/spotify-tui
 
 go 1.23.2
 

@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/franciscosbf/spotifytui/internals/uri"
+	"github.com/franciscosbf/spotify-tui/internals/uri"
 )
 
 var (

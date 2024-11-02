@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/franciscosbf/spotifytui/internals/uri"
-	"github.com/franciscosbf/spotifytui/internals/util"
+	"github.com/franciscosbf/spotify-tui/internals/uri"
+	"github.com/franciscosbf/spotify-tui/internals/util"
 )
 
 var requiredScopes = []string{
