@@ -5,4 +5,5 @@ var requiredScopes = []string{
 	"user-modify-playback-state",
 	"user-read-currently-playing",
 	"playlist-read-private",
+	"user-read-private",
 }
