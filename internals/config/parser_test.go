@@ -51,3 +51,37 @@ func TestParseAuth(t *testing.T) {
 			auth.RefreshToken, expectedRefreshToken)
 	}
 }
+
+func TestPersistAuth(t *testing.T) {
+	data := Auth{
+		ClientId:     "v4395hb49b4b",
+		RefreshToken: "v3rb45jh549h84",
+	}
+
+	filename := prepareTempFile("TestStoreAuth", "", t)
+
+	if err := WriteAuth(filename, data); err != nil {
+		t.Fatalf("failed to store file: %s", err)
+	}
+
+	auth, err := ParseAuth(filename)
+	if err != nil {
+		t.Fatalf("failed to parse auth: %s", err)
+	}
+
+	if auth.ClientId == "" {
+		t.Fatalf("missing client_id")
+	}
+	if auth.ClientId != data.ClientId {
+		t.Fatalf("invalid client_id. got=%s, expected=%s",
+			auth.ClientId, data.ClientId)
+	}
+
+	if auth.RefreshToken == "" {
+		t.Fatalf("missing refresh_token")
+	}
+	if auth.RefreshToken != data.RefreshToken {
+		t.Fatalf("invalid refresh_token. got=%s, expected=%s",
+			auth.RefreshToken, auth.RefreshToken)
+	}
+}

@@ -12,8 +12,9 @@ type Auth struct {
 }
 
 var (
-	ErrFailedToReadConfig = errors.New("failed to read config file")
-	ErrInvalidConfig      = errors.New("config file is invalid")
+	ErrFailedToReadConfig  = errors.New("failed to read config file")
+	ErrFailedToWriteConfig = errors.New("failed to  writeconfig file")
+	ErrInvalidConfig       = errors.New("config file is invalid")
 )
 
 func parse(path string, config any) error {
@@ -29,6 +30,16 @@ func parse(path string, config any) error {
 	return nil
 }
 
+func write(path string, config any) error {
+	raw, _ := json.MarshalIndent(config, "", "  ")
+
+	if err := os.WriteFile(path, raw, 0644); err != nil {
+		return ErrFailedToWriteConfig
+	}
+
+	return nil
+}
+
 func ParseAuth(path string) (Auth, error) {
 	var auth Auth
 
@@ -37,4 +48,8 @@ func ParseAuth(path string) (Auth, error) {
 	}
 
 	return auth, nil
+}
+
+func WriteAuth(path string, auth Auth) error {
+	return write(path, auth)
 }
