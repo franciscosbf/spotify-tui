@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -13,9 +12,6 @@ func TestFetchTokenAndRefreshToken(t *testing.T) {
 	codeVerifier := GenCodeVerifier()
 	codeChallenge := GenCodeChallenge(codeVerifier)
 	timeout := time.Second * 15
-
-	fmt.Println(codeVerifier)
-	fmt.Println(codeChallenge)
 
 	clientId := os.Getenv("CLIENT_ID")
 	if clientId == "" {

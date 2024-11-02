@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -44,8 +42,6 @@ func requestToken(clientId string, parameters *url.Values) (Token, error) {
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil || response.StatusCode != 200 {
-		body, _ := io.ReadAll(response.Body)
-		fmt.Println(string(body))
 		return Token{}, ErrTokenRequestFailed
 	}
 
