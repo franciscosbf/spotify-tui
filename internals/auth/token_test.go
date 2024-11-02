@@ -1,11 +1,11 @@
 package auth
 
 import (
-	"os"
 	"testing"
 	"time"
 
 	"github.com/franciscosbf/spotify-tui/internals/browser"
+	"github.com/franciscosbf/spotify-tui/internals/internalstest"
 )
 
 func TestFetchTokenAndRefreshToken(t *testing.T) {
@@ -13,10 +13,7 @@ func TestFetchTokenAndRefreshToken(t *testing.T) {
 	codeChallenge := GenCodeChallenge(codeVerifier)
 	timeout := time.Second * 15
 
-	clientId := os.Getenv("CLIENT_ID")
-	if clientId == "" {
-		t.Fatal("a valid CLIENT_ID must be set")
-	}
+	clientId := internalstest.GetClientId(t)
 
 	codeAuth := BuildCodeAuth(clientId, codeChallenge)
 
