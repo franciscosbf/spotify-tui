@@ -15,14 +15,14 @@ func TestBuildAuth(t *testing.T) {
 	fakeClientId := "242b42obfevbeber"
 	fakeCodeChallenge := "vrwnvr3vnreov3vr3"
 
-	auth := BuildAuth(fakeClientId, fakeCodeChallenge)
+	codeAuth := BuildCodeAuth(fakeClientId, fakeCodeChallenge)
 
 	expectedUrl := uri.ACCOUNTS + "/authorize"
-	if !strings.HasPrefix(auth.Url, expectedUrl) {
-		t.Fatalf("url doesn't start with %s. got=%s", expectedUrl, auth.Url)
+	if !strings.HasPrefix(codeAuth.Url, expectedUrl) {
+		t.Fatalf("url doesn't start with %s. got=%s", expectedUrl, codeAuth.Url)
 	}
 
-	authUrl, err := url.Parse(auth.Url)
+	authUrl, err := url.Parse(codeAuth.Url)
 	if err != nil {
 		t.Fatalf("failed to parse auth url: %s", err)
 	}
@@ -33,7 +33,7 @@ func TestBuildAuth(t *testing.T) {
 		"client_id":             fakeClientId,
 		"response_type":         "code",
 		"redirect_uri":          uri.REDIRECT,
-		"state":                 auth.State,
+		"state":                 codeAuth.State,
 		"scope":                 strings.Join(requiredScopes, " "),
 		"code_challenge_method": "S256",
 		"code_challenge":        fakeCodeChallenge,

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/browser"
+	"github.com/franciscosbf/spotify-tui/internals/browser"
 )
 
 func TestFetchTokenAndRefreshToken(t *testing.T) {
@@ -18,13 +18,13 @@ func TestFetchTokenAndRefreshToken(t *testing.T) {
 		t.Fatal("a valid CLIENT_ID must be set")
 	}
 
-	auth := BuildAuth(clientId, codeChallenge)
+	codeAuth := BuildCodeAuth(clientId, codeChallenge)
 
-	if err := browser.OpenURL(auth.Url); err != nil {
+	if err := browser.OpenAuthLink(codeAuth.Url); err != nil {
 		t.Fatalf("failed to open browser with auth url: %s", err)
 	}
 
-	code, err := WaitForCode(auth.State, timeout)
+	code, err := WaitForCode(codeAuth.State, timeout)
 	if err != nil {
 		t.Fatalf("failed to wait for code: %s", err)
 	}

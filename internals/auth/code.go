@@ -25,7 +25,7 @@ var (
 	ErrAuthTimeout = errors.New("authentication timed out")
 )
 
-type Auth struct {
+type CodeAuth struct {
 	Url   string
 	State string
 }
@@ -78,7 +78,7 @@ func startCallbackServer() callbackServer {
 	return callbackServer{server, result}
 }
 
-func BuildAuth(clientId, codeChallenge string) Auth {
+func BuildCodeAuth(clientId, codeChallenge string) CodeAuth {
 	tokenUrl, _ := url.Parse(uri.ACCOUNTS)
 
 	tokenUrl = tokenUrl.JoinPath("authorize")
@@ -96,7 +96,7 @@ func BuildAuth(clientId, codeChallenge string) Auth {
 	query.Set("code_challenge", codeChallenge)
 	tokenUrl.RawQuery = query.Encode()
 
-	return Auth{Url: tokenUrl.String(), State: state}
+	return CodeAuth{Url: tokenUrl.String(), State: state}
 }
 
 func WaitForCode(state string, timeout time.Duration) (string, error) {
