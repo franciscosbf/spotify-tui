@@ -1,14 +1,12 @@
 package api
 
-import "fmt"
-
 type ErrResponse struct {
 	Message string `json:"message"`
 	Status  int    `json:"status"`
 }
 
 func (e ErrResponse) Error() string {
-	return fmt.Sprintf("%d %s", e.Status, e.Message)
+	return e.Message
 }
 
 type UserProfile struct {
