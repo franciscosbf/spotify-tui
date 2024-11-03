@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"strings"
+	"fmt"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,17 +25,24 @@ var (
 	welcomeStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#98971a"))
-	awaitAuthStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#fe8019"))
 	errorStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#fb4934"))
+	helpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#594945"))
+	dotsStyle = []lipgloss.Style{
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#b8bb26")),
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#fabd2f")),
+		lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#fb4934")),
+	}
 	displayStyle = lipgloss.NewStyle().
 			Margin(2, 2).
 			Padding(2, 2).
-			Width(54).
-			Height(9).
+			Width(82).
+			Height(15).
 			Align(lipgloss.Center, lipgloss.Center).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#928374"))
@@ -58,6 +65,8 @@ type model struct {
 	token     auth.Token
 	view      view
 	awaitDots int
+	width     int
+	height    int
 }
 
 func welcomeMsg() tea.Cmd {
@@ -171,7 +180,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.token = auth.Token(msg)
 		return m, expirationAlert(m.token.ExpiresIn)
 	case tea.KeyMsg:
-		if msg.Type == tea.KeyEsc {
+		switch msg.String() {
+		case "q", "esc":
 			return m, tea.Quit
 		}
 
@@ -181,28 +191,41 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyRight:
 			// TODO:
 		}
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
 	}
 
 	return m, nil
 }
 
 func (m model) View() string {
-	display := ""
+	display := "\n\n\n\n"
 
 	switch m.view {
 	case initialization:
-		display += welcomeStyle.Render("Welcome to Spotify TUI!!!")
+		display += welcomeStyle.Render("Welcome to Spotify TUI\n")
 	case authConfirmation:
-		display += awaitAuthStyle.Render("I'm waiting for your") +
-			strings.Repeat(".", m.awaitDots)
+		dots := ""
+		for _, style := range dotsStyle[:m.awaitDots] {
+			dots += style.Render(".")
+		}
+		display += fmt.Sprintf(
+			"\nPlaced an authorization request in your browser\nI'm waiting for your%s",
+			dots)
 	case player:
 		// TODO:
 		display += "TODO"
 	case err:
-		display += errorStyle.Render("Error:") + " " + m.err.Error()
+		display += fmt.Sprintf("%s %s.\n", errorStyle.Render("Error:"), m.err.Error())
 	}
 
-	return displayStyle.Render(display)
+	display += "\n\n\n" + helpStyle.Render("q, esc: quit")
+
+	display = displayStyle.Render(display)
+
+	return lipgloss.Place(m.width, m.height,
+		lipgloss.Center, lipgloss.Center, display)
 }
 
 type Tui struct {
@@ -219,7 +242,7 @@ func New(authConfLocation string) Tui {
 }
 
 func (t Tui) Start() error {
-	_, err := tea.NewProgram(t.m).Run()
+	_, err := tea.NewProgram(t.m, tea.WithAltScreen()).Run()
 
 	return err
 }
