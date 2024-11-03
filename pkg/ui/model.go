@@ -257,7 +257,7 @@ func (m model) View() string {
 		}
 		display += strings.Join(buttons, "   ")
 	case err:
-		display += fmt.Sprintf("%s %s.",
+		display += fmt.Sprintf("%s %s",
 			errorStyle.Render("Error:"),
 			errorMsgStyle.Render(m.err.Error()))
 	}
