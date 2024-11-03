@@ -238,7 +238,7 @@ type model struct {
 	profile        api.UserProfile
 	currentWarnErr warnErrMsg
 	err            error
-	authConf       *config.AuthConf
+	conf           *config.Config
 	token          auth.Token
 	view           view
 	awaitDots      int
@@ -286,7 +286,7 @@ func expirationAlert(expiresIn time.Duration) tea.Cmd {
 	})
 }
 
-func readConfig(authConf *config.AuthConf) tea.Cmd {
+func readConfig(authConf *config.Config) tea.Cmd {
 	return func() tea.Msg {
 		if err := authConf.Read(); err != nil {
 			return errMsg(err)
@@ -296,7 +296,7 @@ func readConfig(authConf *config.AuthConf) tea.Cmd {
 	}
 }
 
-func genToken(clientId string, authConf *config.AuthConf) tea.Cmd {
+func genToken(clientId string, authConf *config.Config) tea.Cmd {
 	return func() tea.Msg {
 		token, err := api.GenerateToken(clientId)
 		if err != nil {
@@ -311,7 +311,7 @@ func genToken(clientId string, authConf *config.AuthConf) tea.Cmd {
 	}
 }
 
-func regenToken(authConf *config.AuthConf) tea.Cmd {
+func regenToken(authConf *config.Config) tea.Cmd {
 	return func() tea.Msg {
 		var (
 			token auth.Token
@@ -443,17 +443,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, incrementWelcomeColor(m.welcomeColor)
 		}
 	case initMsg:
-		return m, readConfig(m.authConf)
+		return m, readConfig(m.conf)
 	case configReadMsg:
-		if m.authConf.RefreshToken() != "" {
-			return m, regenToken(m.authConf)
+		if m.conf.RefreshToken() != "" {
+			return m, regenToken(m.conf)
 		}
 
 		return m, requestGenToken()
 	case genTokenMsg, failedRegenTokenMsg:
 		m.view = authConfirmation
-		clientId := m.authConf.ClientId()
-		return m, tea.Batch(genToken(clientId, m.authConf),
+		clientId := m.conf.ClientId()
+		return m, tea.Batch(genToken(clientId, m.conf),
 			incrementAwaitDots(m.awaitDots))
 	case awaitDotsMsg:
 		m.awaitDots = int(msg)
@@ -461,7 +461,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, incrementAwaitDots(m.awaitDots)
 		}
 	case expiredTokenMsg:
-		return m, regenToken(m.authConf)
+		return m, regenToken(m.conf)
 	case newTokenMsg:
 		m.token = msg.token
 		m.actions.setToken(msg.token.Access)
@@ -634,7 +634,7 @@ func New(authConfLocation string) Tui {
 	m := model{
 		help:           help.New(),
 		actions:        clientActions{client},
-		authConf:       config.NewAuthConf(authConfLocation),
+		conf:           config.NewConfig(authConfLocation),
 		currentWarnErr: newNoWarnErrMsg(),
 		view:           initialization,
 		selectedButton: 1,

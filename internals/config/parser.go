@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-type Auth struct {
+type Config struct {
 	ClientId     string `json:"client_id"`
 	RefreshToken string `json:"refresh_token"`
 }
@@ -40,16 +40,16 @@ func write(path string, config any) error {
 	return nil
 }
 
-func ParseAuth(path string) (Auth, error) {
-	var auth Auth
+func Parse(path string) (Config, error) {
+	var auth Config
 
 	if err := parse(path, &auth); err != nil {
-		return Auth{}, err
+		return Config{}, err
 	}
 
 	return auth, nil
 }
 
-func WriteAuth(path string, auth Auth) error {
+func Write(path string, auth Config) error {
 	return write(path, auth)
 }

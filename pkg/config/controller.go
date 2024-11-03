@@ -6,15 +6,15 @@ import (
 	"github.com/franciscosbf/spotify-tui/internals/config"
 )
 
-var ErrMissingClientId = errors.New("missing client id")
+var ErrMissingClientId = errors.New("missing client_id field in config")
 
-type AuthConf struct {
+type Config struct {
 	location string
-	auth     config.Auth
+	conf     config.Config
 }
 
-func (a *AuthConf) Read() error {
-	auth, err := config.ParseAuth(a.location)
+func (a *Config) Read() error {
+	auth, err := config.Parse(a.location)
 	if err != nil {
 		return err
 	}
@@ -23,25 +23,25 @@ func (a *AuthConf) Read() error {
 		return ErrMissingClientId
 	}
 
-	a.auth = auth
+	a.conf = auth
 
 	return nil
 }
 
-func (a *AuthConf) UpdateRefreshToken(refreshToken string) error {
-	a.auth.RefreshToken = refreshToken
+func (a *Config) UpdateRefreshToken(refreshToken string) error {
+	a.conf.RefreshToken = refreshToken
 
-	return config.WriteAuth(a.location, a.auth)
+	return config.Write(a.location, a.conf)
 }
 
-func (a *AuthConf) ClientId() string {
-	return a.auth.ClientId
+func (a *Config) ClientId() string {
+	return a.conf.ClientId
 }
 
-func (a *AuthConf) RefreshToken() string {
-	return a.auth.RefreshToken
+func (a *Config) RefreshToken() string {
+	return a.conf.RefreshToken
 }
 
-func NewAuthConf(location string) *AuthConf {
-	return &AuthConf{location: location, auth: config.Auth{}}
+func NewConfig(location string) *Config {
+	return &Config{location: location, conf: config.Config{}}
 }

@@ -30,58 +30,58 @@ func TestParseAuth(t *testing.T) {
 		`", "refresh_token": "` + expectedRefreshToken + `"}`
 	filename := prepareTempFile("TestParseAuth", data, t)
 
-	auth, err := ParseAuth(filename)
+	conf, err := Parse(filename)
 	if err != nil {
 		t.Fatalf("failed to parse auth: %s", err)
 	}
 
-	if auth.ClientId == "" {
+	if conf.ClientId == "" {
 		t.Fatalf("missing client_id")
 	}
-	if auth.ClientId != expectedClientId {
+	if conf.ClientId != expectedClientId {
 		t.Fatalf("invalid client_id. got=%s, expected=%s",
-			auth.ClientId, expectedClientId)
+			conf.ClientId, expectedClientId)
 	}
 
-	if auth.RefreshToken == "" {
+	if conf.RefreshToken == "" {
 		t.Fatalf("missing refresh_token")
 	}
-	if auth.RefreshToken != expectedRefreshToken {
+	if conf.RefreshToken != expectedRefreshToken {
 		t.Fatalf("invalid refresh_token. got=%s, expected=%s",
-			auth.RefreshToken, expectedRefreshToken)
+			conf.RefreshToken, expectedRefreshToken)
 	}
 }
 
 func TestPersistAuth(t *testing.T) {
-	data := Auth{
+	data := Config{
 		ClientId:     "v4395hb49b4b",
 		RefreshToken: "v3rb45jh549h84",
 	}
 
 	filename := prepareTempFile("TestStoreAuth", "", t)
 
-	if err := WriteAuth(filename, data); err != nil {
+	if err := Write(filename, data); err != nil {
 		t.Fatalf("failed to store file: %s", err)
 	}
 
-	auth, err := ParseAuth(filename)
+	conf, err := Parse(filename)
 	if err != nil {
 		t.Fatalf("failed to parse auth: %s", err)
 	}
 
-	if auth.ClientId == "" {
+	if conf.ClientId == "" {
 		t.Fatalf("missing client_id")
 	}
-	if auth.ClientId != data.ClientId {
+	if conf.ClientId != data.ClientId {
 		t.Fatalf("invalid client_id. got=%s, expected=%s",
-			auth.ClientId, data.ClientId)
+			conf.ClientId, data.ClientId)
 	}
 
-	if auth.RefreshToken == "" {
+	if conf.RefreshToken == "" {
 		t.Fatalf("missing refresh_token")
 	}
-	if auth.RefreshToken != data.RefreshToken {
+	if conf.RefreshToken != data.RefreshToken {
 		t.Fatalf("invalid refresh_token. got=%s, expected=%s",
-			auth.RefreshToken, auth.RefreshToken)
+			conf.RefreshToken, conf.RefreshToken)
 	}
 }
