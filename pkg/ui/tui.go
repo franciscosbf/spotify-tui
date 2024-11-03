@@ -352,7 +352,7 @@ type clientActions struct {
 func (c clientActions) directOperation(op func() error) tea.Cmd {
 	return func() tea.Msg {
 		err := op()
-		if err, ok := err.(api.ErrResponse); ok && err.Code == 403 {
+		if err, ok := err.(api.ErrResponse); ok && err.Status == 403 {
 			return nil
 		}
 		if err != nil {
