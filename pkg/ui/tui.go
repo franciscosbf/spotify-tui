@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -61,9 +63,6 @@ var (
 	awaitStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#a89984"))
-	helpStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#594945"))
 	errorStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#fb4934"))
@@ -79,6 +78,58 @@ var (
 			BorderForeground(lipgloss.Color("#928374"))
 )
 
+type defaultKeyMap struct {
+	quit key.Binding
+}
+
+func (k defaultKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.quit}
+}
+
+func (k defaultKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.quit},
+	}
+}
+
+var defaultKm = defaultKeyMap{
+	quit: key.NewBinding(
+		key.WithKeys("q", "esc"),
+		key.WithHelp("q/esc", "quit"),
+	),
+}
+
+type playerKeyMap struct {
+	defaultKeyMap
+	left  key.Binding
+	right key.Binding
+	enter key.Binding
+}
+
+func (k playerKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.quit, k.left, k.right, k.enter}
+}
+
+func (k playerKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{}
+}
+
+var playerKm = playerKeyMap{
+	defaultKeyMap: defaultKm,
+	left: key.NewBinding(
+		key.WithKeys("left"),
+		key.WithHelp("←", "move left"),
+	),
+	right: key.NewBinding(
+		key.WithKeys("right"),
+		key.WithHelp("→", "move right"),
+	),
+	enter: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("↵", "enter"),
+	),
+}
+
 type (
 	welcomeColorMsg     int
 	initMsg             struct{}
@@ -92,6 +143,7 @@ type (
 )
 
 type model struct {
+	help         help.Model
 	err          error
 	authConf     *config.AuthConf
 	token        auth.Token
@@ -229,15 +281,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.token = auth.Token(msg)
 		return m, expirationAlert(m.token.ExpiresIn)
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "esc":
+		switch {
+		case key.Matches(msg, defaultKm.quit):
 			return m, tea.Quit
 		}
 
-		switch msg.Type {
-		case tea.KeyLeft:
+		if m.view != player {
+			break
+		}
+
+		switch {
+		case key.Matches(msg, playerKm.left):
 		// TODO:
-		case tea.KeyRight:
+		case key.Matches(msg, playerKm.right):
+			// TODO:
+		case key.Matches(msg, playerKm.enter):
 			// TODO:
 		}
 	case tea.WindowSizeMsg:
@@ -250,10 +308,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	display := "\n\n\n\n"
+	var keyHelp help.KeyMap = defaultKm
 
 	switch m.view {
 	case initialization:
-		colored := welcomeColorsStyle[m.welcomeColor].Render("Welcome to Spotify TUI\n")
+		colored := welcomeColorsStyle[m.welcomeColor].Render("Welcome to Spotify TUI")
 		display += welcomeStyle.Render(colored)
 	case authConfirmation:
 		dots := ""
@@ -267,14 +326,21 @@ func (m model) View() string {
 			dots)
 	case player:
 		// TODO:
+		keyHelp = playerKm
 		display += "TODO"
 	case err:
-		display += fmt.Sprintf("%s %s.\n",
+		display += fmt.Sprintf("%s %s.",
 			errorStyle.Render("Error:"),
 			errorMsgStyle.Render(m.err.Error()))
 	}
 
-	display += "\n\n\n" + helpStyle.Render("q, esc: quit")
+	newLines := ""
+	if m.view == authConfirmation {
+		newLines = "\n\n"
+	} else {
+		newLines = "\n\n\n"
+	}
+	display += fmt.Sprintf("%s%s", newLines, m.help.View(keyHelp))
 
 	display = displayStyle.Render(display)
 
@@ -288,6 +354,7 @@ type Tui struct {
 
 func New(authConfLocation string) Tui {
 	m := model{
+		help:     help.New(),
 		authConf: config.NewAuthConf(authConfLocation),
 		view:     initialization,
 	}
