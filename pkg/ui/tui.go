@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -31,6 +32,17 @@ const (
 	track repeatState = iota
 	context
 	off
+	nRepeatStates
+)
+
+type button int
+
+const (
+	previous button = iota
+	resumePause
+	next
+	shuffle
+	repeat
 )
 
 var buttonSymbols = []string{
@@ -79,14 +91,20 @@ var (
 			Foreground(lipgloss.Color("#fb4934")),
 	}
 	awaitStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#a89984"))
+			Bold(true)
 	buttonStyle = lipgloss.NewStyle().
 			Bold(true)
 	selectedButtonStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#fe8019"))
 	clickedButtonStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#928374"))
+	ackStyle = lipgloss.NewStyle().
+			Bold(true)
+	warnStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#fabd2f"))
+	warnMsgStyle = lipgloss.NewStyle().
+			Bold(true)
 	errorStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#fb4934"))
@@ -150,8 +168,29 @@ var playerKm = playerKeyMap{
 	),
 	enter: key.NewBinding(
 		key.WithKeys("enter"),
-		key.WithHelp("↵", "enter"),
+		key.WithHelp("↵", "press"),
 	),
+}
+
+type ackKeyMap struct {
+	defaultKeyMap
+	enter key.Binding
+}
+
+var ackKm = ackKeyMap{
+	defaultKeyMap: defaultKm,
+	enter: key.NewBinding(
+		key.WithKeys("enter"),
+		key.WithHelp("↵", "confirm"),
+	),
+}
+
+func (k ackKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.quit, k.enter}
+}
+
+func (k ackKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{}
 }
 
 type (
@@ -166,6 +205,7 @@ type (
 	errMsg              error
 	ackedAuthMsg        auth.Token
 	userInfoMsg         api.UserProfile
+	dismissWarnErrMsg   int
 )
 
 type newTokenMsg struct {
@@ -173,10 +213,30 @@ type newTokenMsg struct {
 	refreshed bool
 }
 
+type warnErrMsg struct {
+	err error
+	id  int
+}
+
+func newWarnErrMsg(err error) warnErrMsg {
+	id := rand.Int()
+
+	return warnErrMsg{err, id}
+}
+
+func newNoWarnErrMsg() warnErrMsg {
+	return warnErrMsg{nil, -1}
+}
+
+func (w warnErrMsg) warn() bool {
+	return w.id != -1
+}
+
 type model struct {
 	help           help.Model
-	client         *api.Client
+	actions        clientActions
 	profile        api.UserProfile
+	currentWarnErr warnErrMsg
 	err            error
 	authConf       *config.AuthConf
 	token          auth.Token
@@ -188,12 +248,12 @@ type model struct {
 	selectedButton int
 	repeat         repeatState
 	clickedButton  bool
-	play           bool
+	resume         bool
 	shuffle        bool
 }
 
 func welcomeMsg() tea.Cmd {
-	return tea.Tick(time.Second*2, func(_ time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*2000, func(_ time.Time) tea.Msg {
 		return initMsg(struct{}{})
 	})
 }
@@ -285,12 +345,79 @@ func removeClick() tea.Cmd {
 	})
 }
 
-func getUserProfile(client *api.Client) tea.Cmd {
+type clientActions struct {
+	client *api.Client
+}
+
+func (c clientActions) directOperation(op func() error) tea.Cmd {
 	return func() tea.Msg {
-		profile, _ := client.GetUserProfile()
+		err := op()
+		if err, ok := err.(api.ErrResponse); ok && err.Code == 403 {
+			return nil
+		}
+		if err != nil {
+			return newWarnErrMsg(err)
+		}
+
+		return nil
+	}
+}
+
+func (c clientActions) setToken(token string) {
+	c.client.SetToken(token)
+}
+
+func (c clientActions) getUserProfile() tea.Cmd {
+	return func() tea.Msg {
+		profile, err := c.client.GetUserProfile()
+		if err != nil {
+			return newWarnErrMsg(err)
+		}
 
 		return userInfoMsg(profile)
 	}
+}
+
+func (c clientActions) resume() tea.Cmd {
+	return c.directOperation(c.client.Resume)
+}
+
+func (c clientActions) pause() tea.Cmd {
+	return c.directOperation(c.client.Pause)
+}
+
+func (c clientActions) skipToPrevious() tea.Cmd {
+	return c.directOperation(c.client.SkipToPrevious)
+}
+
+func (c clientActions) skipToNext() tea.Cmd {
+	return c.directOperation(c.client.SkipToNext)
+}
+
+func (c clientActions) enableShuffle() tea.Cmd {
+	return c.directOperation(c.client.EnableShuffle)
+}
+
+func (c clientActions) disableShuffle() tea.Cmd {
+	return c.directOperation(c.client.DisableShuffle)
+}
+
+func (c clientActions) setRepeatTrack() tea.Cmd {
+	return c.directOperation(c.client.SetRepeatTrack)
+}
+
+func (c clientActions) setRepeatContext() tea.Cmd {
+	return c.directOperation(c.client.SetRepeatContext)
+}
+
+func (c clientActions) disableRepeat() tea.Cmd {
+	return c.directOperation(c.client.DisableRepeat)
+}
+
+func dismissWarnErr(warnErrId int) tea.Cmd {
+	return tea.Tick(time.Second*6, func(_ time.Time) tea.Msg {
+		return dismissWarnErrMsg(warnErrId)
+	})
 }
 
 func (m model) Init() tea.Cmd {
@@ -300,6 +427,13 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case warnErrMsg:
+		m.currentWarnErr = msg
+		return m, dismissWarnErr(msg.id)
+	case dismissWarnErrMsg:
+		if m.currentWarnErr.id == int(msg) {
+			m.currentWarnErr = newNoWarnErrMsg()
+		}
 	case errMsg:
 		m.view = err
 		m.err = msg
@@ -330,14 +464,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, regenToken(m.authConf)
 	case newTokenMsg:
 		m.token = msg.token
-		m.client.SetToken(msg.token.Access)
+		m.actions.setToken(msg.token.Access)
 		if msg.refreshed {
 			m.view = player
 			return m, expirationAlert(m.token.ExpiresIn)
 		} else {
 			m.view = authAck
 			return m, tea.Batch(expirationAlert(m.token.ExpiresIn),
-				getUserProfile(m.client))
+				m.actions.getUserProfile())
 		}
 	case userInfoMsg:
 		m.profile = api.UserProfile(msg)
@@ -350,23 +484,63 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, defaultKm.quit):
 			return m, tea.Quit
 		}
-		if m.view != player {
-			break
-		}
-		switch {
-		case key.Matches(msg, playerKm.left):
-			if m.selectedButton > 0 {
-				m.clickedButton = false
-				m.selectedButton--
+
+		switch m.view {
+		case authAck:
+			switch {
+			case key.Matches(msg, playerKm.enter):
+				m.view = player
 			}
-		case key.Matches(msg, playerKm.right):
-			if m.selectedButton < len(buttonSymbols)-1 {
-				m.clickedButton = false
-				m.selectedButton++
+		case player:
+			switch {
+			case key.Matches(msg, playerKm.left):
+				if m.selectedButton > 0 {
+					m.clickedButton = false
+					m.selectedButton--
+				}
+			case key.Matches(msg, playerKm.right):
+				if m.selectedButton < len(buttonSymbols)-1 {
+					m.clickedButton = false
+					m.selectedButton++
+				}
+			case key.Matches(msg, playerKm.enter):
+				m.clickedButton = true
+
+				var cmd tea.Cmd
+
+				switch button(m.selectedButton) {
+				case previous:
+					cmd = m.actions.skipToPrevious()
+				case resumePause:
+					if m.resume {
+						cmd = m.actions.resume()
+					} else {
+						cmd = m.actions.pause()
+					}
+					m.resume = !m.resume
+				case next:
+					cmd = m.actions.skipToNext()
+				case shuffle:
+					if m.shuffle {
+						cmd = m.actions.enableShuffle()
+					} else {
+						cmd = m.actions.disableShuffle()
+					}
+					m.shuffle = !m.shuffle
+				case repeat:
+					switch m.repeat {
+					case track:
+						cmd = m.actions.setRepeatTrack()
+					case context:
+						cmd = m.actions.setRepeatContext()
+					case off:
+						cmd = m.actions.disableRepeat()
+					}
+					m.repeat = (m.repeat + 1) % nRepeatStates
+				}
+
+				return m, tea.Batch(cmd, removeClick())
 			}
-		case key.Matches(msg, playerKm.enter):
-			m.clickedButton = true
-			return m, removeClick()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -377,7 +551,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	display := "\n\n\n\n\n"
+	display := ""
+
+	if m.currentWarnErr.warn() {
+		warn := fmt.Sprintf("%s %s",
+			warnStyle.Render("Alert:"),
+			warnMsgStyle.Render(m.currentWarnErr.err.Error()))
+		display = fmt.Sprintf("%s%s", warn, display)
+	}
+
+	display += "\n\n\n\n\n"
+
 	var keyHelp help.KeyMap = defaultKm
 
 	switch m.view {
@@ -395,10 +579,21 @@ func (m model) View() string {
 			awaitStyle.Render("Check your browser, I'm waiting for your"),
 			dots)
 	case authAck:
-		if m.profile.Name == "" {
-			break
+		keyHelp = ackKm
+		name := m.profile.Name
+		followers := m.profile.Followers.Total
+		if name == "" {
+			display += fmt.Sprintf("%s\n", ackStyle.Render("Verified with success!"))
+		} else {
+			fllw := "follower"
+			if followers != 1 {
+				fllw += "s"
+			}
+			display += fmt.Sprintf("%s\n%s",
+				ackStyle.Render(fmt.Sprintf("Thank you %s with your shitty %d %s!",
+					name, followers, fllw)),
+				ackStyle.Render("Now I can spoof your miserable account."))
 		}
-		display += fmt.Sprintf("%s | %d", m.profile.Name, m.profile.Followers.Total)
 	case player:
 		keyHelp = playerKm
 		buttons := []string{}
@@ -418,7 +613,7 @@ func (m model) View() string {
 	}
 
 	newLines := "\n\n\n\n"
-	if m.view != authConfirmation {
+	if m.view != authConfirmation && m.view != authAck {
 		newLines += "\n"
 	}
 	display += fmt.Sprintf("%s%s", newLines, m.help.View(keyHelp))
@@ -434,12 +629,18 @@ type Tui struct {
 }
 
 func New(authConfLocation string) Tui {
+	client := api.NewClient()
+
 	m := model{
 		help:           help.New(),
-		client:         api.NewClient(),
+		actions:        clientActions{client},
 		authConf:       config.NewAuthConf(authConfLocation),
+		currentWarnErr: newNoWarnErrMsg(),
 		view:           initialization,
 		selectedButton: 1,
+		shuffle:        true,
+		resume:         true,
+		repeat:         track,
 	}
 
 	return Tui{m}
