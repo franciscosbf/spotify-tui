@@ -628,13 +628,13 @@ type Tui struct {
 	m model
 }
 
-func New(authConfLocation string) Tui {
+func New(confLocation string) Tui {
 	client := api.NewClient()
 
 	m := model{
 		help:           help.New(),
 		actions:        clientActions{client},
-		conf:           config.NewConfig(authConfLocation),
+		conf:           config.NewConfig(confLocation),
 		currentWarnErr: newNoWarnErrMsg(),
 		view:           initialization,
 		selectedButton: 1,
