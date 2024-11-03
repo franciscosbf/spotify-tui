@@ -22,22 +22,53 @@ const (
 )
 
 var (
-	welcomeStyle = lipgloss.NewStyle().
+	welcomeColorsStyle = []lipgloss.Style{
+		lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#98971a"))
+			Foreground(lipgloss.Color("#98971a")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#689d6a")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#b8bb26")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#8ec07c")),
+	}
+	welcomeStyle = lipgloss.NewStyle().
+			Bold(true)
+	dotColorsStyle = []lipgloss.Style{
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#b8bb26")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#b8bb26")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#fabd2f")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#fb4934")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#fb4934")),
+		lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#fb4934")),
+	}
+	awaitStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#a89984"))
+	helpStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#594945"))
 	errorStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#fb4934"))
-	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#594945"))
-	dotsStyle = []lipgloss.Style{
-		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#b8bb26")),
-		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#fabd2f")),
-		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#fb4934")),
-	}
+	errorMsgStyle = lipgloss.NewStyle().
+			Italic(true)
 	displayStyle = lipgloss.NewStyle().
 			Margin(2, 2).
 			Padding(2, 2).
@@ -49,6 +80,7 @@ var (
 )
 
 type (
+	welcomeColorMsg     int
 	initMsg             struct{}
 	configReadMsg       struct{}
 	awaitDotsMsg        int
@@ -60,13 +92,14 @@ type (
 )
 
 type model struct {
-	err       error
-	authConf  *config.AuthConf
-	token     auth.Token
-	view      view
-	awaitDots int
-	width     int
-	height    int
+	err          error
+	authConf     *config.AuthConf
+	token        auth.Token
+	view         view
+	awaitDots    int
+	width        int
+	height       int
+	welcomeColor int
 }
 
 func welcomeMsg() tea.Cmd {
@@ -75,9 +108,19 @@ func welcomeMsg() tea.Cmd {
 	})
 }
 
+func incrementWelcomeColor(color int) tea.Cmd {
+	return tea.Tick(time.Millisecond*400, func(_ time.Time) tea.Msg {
+		if color += 1; color < len(welcomeColorsStyle) {
+			return welcomeColorMsg(color)
+		} else {
+			return welcomeColorMsg(0)
+		}
+	})
+}
+
 func incrementAwaitDots(dots int) tea.Cmd {
 	return tea.Tick(time.Second, func(_ time.Time) tea.Msg {
-		if dots += 1; dots < 4 {
+		if dots += 1; dots <= len(dotColorsStyle) {
 			return awaitDotsMsg(dots)
 		} else {
 			return awaitDotsMsg(0)
@@ -147,7 +190,8 @@ func requestRegenToken() tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	return welcomeMsg()
+	return tea.Batch(welcomeMsg(),
+		incrementWelcomeColor(m.welcomeColor))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -155,6 +199,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.view = err
 		m.err = msg
+	case welcomeColorMsg:
+		if m.view == initialization {
+			m.welcomeColor = int(msg)
+			return m, incrementWelcomeColor(m.welcomeColor)
+		}
 	case initMsg:
 		return m, readConfig(m.authConf)
 	case configReadMsg:
@@ -204,20 +253,25 @@ func (m model) View() string {
 
 	switch m.view {
 	case initialization:
-		display += welcomeStyle.Render("Welcome to Spotify TUI\n")
+		colored := welcomeColorsStyle[m.welcomeColor].Render("Welcome to Spotify TUI\n")
+		display += welcomeStyle.Render(colored)
 	case authConfirmation:
 		dots := ""
-		for _, style := range dotsStyle[:m.awaitDots] {
+		for _, style := range dotColorsStyle[:m.awaitDots] {
 			dots += style.Render(".")
 		}
 		display += fmt.Sprintf(
-			"\nPlaced an authorization request in your browser\nI'm waiting for your%s",
+			"\n%s\n%s%s",
+			awaitStyle.Render("I sent an authorization request!"),
+			awaitStyle.Render("Check your browser, I'm waiting for your"),
 			dots)
 	case player:
 		// TODO:
 		display += "TODO"
 	case err:
-		display += fmt.Sprintf("%s %s.\n", errorStyle.Render("Error:"), m.err.Error())
+		display += fmt.Sprintf("%s %s.\n",
+			errorStyle.Render("Error:"),
+			errorMsgStyle.Render(m.err.Error()))
 	}
 
 	display += "\n\n\n" + helpStyle.Render("q, esc: quit")
