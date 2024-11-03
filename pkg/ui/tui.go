@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -19,9 +20,26 @@ type view int
 const (
 	initialization view = iota
 	authConfirmation
+	authAck
 	player
 	err
 )
+
+type repeatState int
+
+const (
+	track repeatState = iota
+	context
+	off
+)
+
+var buttonSymbols = []string{
+	"<",
+	"▶/‖",
+	">",
+	"∞",
+	"⟳",
+}
 
 var (
 	welcomeColorsStyle = []lipgloss.Style{
@@ -63,6 +81,12 @@ var (
 	awaitStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#a89984"))
+	buttonStyle = lipgloss.NewStyle().
+			Bold(true)
+	selectedButtonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#fe8019"))
+	clickedButtonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#928374"))
 	errorStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#fb4934"))
@@ -71,10 +95,10 @@ var (
 	displayStyle = lipgloss.NewStyle().
 			Margin(2, 2).
 			Padding(2, 2).
-			Width(82).
-			Height(15).
+			Width(68).
+			Height(13).
 			Align(lipgloss.Center, lipgloss.Center).
-			BorderStyle(lipgloss.RoundedBorder()).
+			BorderStyle(lipgloss.ThickBorder()).
 			BorderForeground(lipgloss.Color("#928374"))
 )
 
@@ -118,11 +142,11 @@ var playerKm = playerKeyMap{
 	defaultKeyMap: defaultKm,
 	left: key.NewBinding(
 		key.WithKeys("left"),
-		key.WithHelp("←", "move left"),
+		key.WithHelp("←", "left"),
 	),
 	right: key.NewBinding(
 		key.WithKeys("right"),
-		key.WithHelp("→", "move right"),
+		key.WithHelp("→", "right"),
 	),
 	enter: key.NewBinding(
 		key.WithKeys("enter"),
@@ -136,22 +160,36 @@ type (
 	configReadMsg       struct{}
 	awaitDotsMsg        int
 	expiredTokenMsg     struct{}
-	regenTokenMsg       struct{}
+	genTokenMsg         struct{}
 	failedRegenTokenMsg struct{}
+	removeClickMsg      struct{}
 	errMsg              error
-	newTokenMsg         auth.Token
+	ackedAuthMsg        auth.Token
+	userInfoMsg         api.UserProfile
 )
 
+type newTokenMsg struct {
+	token     auth.Token
+	refreshed bool
+}
+
 type model struct {
-	help         help.Model
-	err          error
-	authConf     *config.AuthConf
-	token        auth.Token
-	view         view
-	awaitDots    int
-	width        int
-	height       int
-	welcomeColor int
+	help           help.Model
+	client         *api.Client
+	profile        api.UserProfile
+	err            error
+	authConf       *config.AuthConf
+	token          auth.Token
+	view           view
+	awaitDots      int
+	width          int
+	height         int
+	welcomeColor   int
+	selectedButton int
+	repeat         repeatState
+	clickedButton  bool
+	play           bool
+	shuffle        bool
 }
 
 func welcomeMsg() tea.Cmd {
@@ -209,7 +247,7 @@ func genToken(clientId string, authConf *config.AuthConf) tea.Cmd {
 			return errMsg(err)
 		}
 
-		return newTokenMsg(token)
+		return newTokenMsg{token: token}
 	}
 }
 
@@ -231,13 +269,27 @@ func regenToken(authConf *config.AuthConf) tea.Cmd {
 			return errMsg(err)
 		}
 
-		return newTokenMsg(token)
+		return newTokenMsg{token: token, refreshed: true}
 	}
 }
 
-func requestRegenToken() tea.Cmd {
+func requestGenToken() tea.Cmd {
 	return func() tea.Msg {
-		return regenTokenMsg(struct{}{})
+		return genTokenMsg(struct{}{})
+	}
+}
+
+func removeClick() tea.Cmd {
+	return tea.Tick(time.Millisecond*300, func(_ time.Time) tea.Msg {
+		return removeClickMsg(struct{}{})
+	})
+}
+
+func getUserProfile(client *api.Client) tea.Cmd {
+	return func() tea.Msg {
+		profile, _ := client.GetUserProfile()
+
+		return userInfoMsg(profile)
 	}
 }
 
@@ -263,8 +315,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, regenToken(m.authConf)
 		}
 
-		return m, requestRegenToken()
-	case regenTokenMsg, failedRegenTokenMsg:
+		return m, requestGenToken()
+	case genTokenMsg, failedRegenTokenMsg:
 		m.view = authConfirmation
 		clientId := m.authConf.ClientId()
 		return m, tea.Batch(genToken(clientId, m.authConf),
@@ -277,26 +329,44 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case expiredTokenMsg:
 		return m, regenToken(m.authConf)
 	case newTokenMsg:
+		m.token = msg.token
+		m.client.SetToken(msg.token.Access)
+		if msg.refreshed {
+			m.view = player
+			return m, expirationAlert(m.token.ExpiresIn)
+		} else {
+			m.view = authAck
+			return m, tea.Batch(expirationAlert(m.token.ExpiresIn),
+				getUserProfile(m.client))
+		}
+	case userInfoMsg:
+		m.profile = api.UserProfile(msg)
+	case ackedAuthMsg:
 		m.view = player
-		m.token = auth.Token(msg)
-		return m, expirationAlert(m.token.ExpiresIn)
+	case removeClickMsg:
+		m.clickedButton = false
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, defaultKm.quit):
 			return m, tea.Quit
 		}
-
 		if m.view != player {
 			break
 		}
-
 		switch {
 		case key.Matches(msg, playerKm.left):
-		// TODO:
+			if m.selectedButton > 0 {
+				m.clickedButton = false
+				m.selectedButton--
+			}
 		case key.Matches(msg, playerKm.right):
-			// TODO:
+			if m.selectedButton < len(buttonSymbols)-1 {
+				m.clickedButton = false
+				m.selectedButton++
+			}
 		case key.Matches(msg, playerKm.enter):
-			// TODO:
+			m.clickedButton = true
+			return m, removeClick()
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -307,7 +377,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	display := "\n\n\n\n"
+	display := "\n\n\n\n\n"
 	var keyHelp help.KeyMap = defaultKm
 
 	switch m.view {
@@ -320,25 +390,36 @@ func (m model) View() string {
 			dots += style.Render(".")
 		}
 		display += fmt.Sprintf(
-			"\n%s\n%s%s",
+			"%s\n%s%s",
 			awaitStyle.Render("I sent an authorization request!"),
 			awaitStyle.Render("Check your browser, I'm waiting for your"),
 			dots)
+	case authAck:
+		if m.profile.Name == "" {
+			break
+		}
+		display += fmt.Sprintf("%s | %d", m.profile.Name, m.profile.Followers.Total)
 	case player:
-		// TODO:
 		keyHelp = playerKm
-		display += "TODO"
+		buttons := []string{}
+		for _, symbol := range buttonSymbols {
+			buttons = append(buttons, buttonStyle.Render(symbol))
+		}
+		if m.clickedButton {
+			buttons[m.selectedButton] = clickedButtonStyle.Render(buttons[m.selectedButton])
+		} else {
+			buttons[m.selectedButton] = selectedButtonStyle.Render(buttons[m.selectedButton])
+		}
+		display += strings.Join(buttons, "   ")
 	case err:
 		display += fmt.Sprintf("%s %s.",
 			errorStyle.Render("Error:"),
 			errorMsgStyle.Render(m.err.Error()))
 	}
 
-	newLines := ""
-	if m.view == authConfirmation {
-		newLines = "\n\n"
-	} else {
-		newLines = "\n\n\n"
+	newLines := "\n\n\n\n"
+	if m.view != authConfirmation {
+		newLines += "\n"
 	}
 	display += fmt.Sprintf("%s%s", newLines, m.help.View(keyHelp))
 
@@ -354,9 +435,11 @@ type Tui struct {
 
 func New(authConfLocation string) Tui {
 	m := model{
-		help:     help.New(),
-		authConf: config.NewAuthConf(authConfLocation),
-		view:     initialization,
+		help:           help.New(),
+		client:         api.NewClient(),
+		authConf:       config.NewAuthConf(authConfLocation),
+		view:           initialization,
+		selectedButton: 1,
 	}
 
 	return Tui{m}

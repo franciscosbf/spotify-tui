@@ -36,7 +36,6 @@ func init() {
 
 	playerEndpoint = endpoint(uri.API, "v1/me/player")
 
-	devicesEndpoint = endpoint(playerEndpoint, "devices")
 	playEndpoint = endpoint(playerEndpoint, "play")
 	pauseEndpoint = endpoint(playerEndpoint, "pause")
 	previousEndpoint = endpoint(playerEndpoint, "previous")
@@ -49,14 +48,14 @@ func init() {
 var ErrRequestFailed = errors.New("failed to send request")
 
 type Client struct {
-	*req.Client
+	cli   *req.Client
 	token string
 }
 
-func NewClient(token string) *Client {
+func NewClient() *Client {
 	client := req.C()
 
-	return &Client{client, token}
+	return &Client{client, ""}
 }
 
 func (c *Client) tokenBearer() string {
@@ -87,7 +86,7 @@ func (c *Client) request(method string, endpoint string, request *req.Request) e
 }
 
 func (c *Client) simpleRequest(method, endpoint string) error {
-	request := c.R()
+	request := c.cli.R()
 
 	if err := c.request(method, endpoint, request); err != nil {
 		return err
@@ -97,7 +96,7 @@ func (c *Client) simpleRequest(method, endpoint string) error {
 }
 
 func (c *Client) stateRequest(endpoint, state string) error {
-	request := c.R().
+	request := c.cli.R().
 		SetQueryParam("state", state)
 
 	if err := c.request(http.MethodPut, endpoint, request); err != nil {
@@ -118,7 +117,7 @@ func (c *Client) repeatRequest(mode string) error {
 func (c *Client) GetUserProfile() (UserProfile, error) {
 	var profile UserProfile
 
-	request := c.R().
+	request := c.cli.R().
 		SetSuccessResult(&profile)
 
 	if err := c.request(http.MethodGet, profileEndpoint, request); err != nil {
@@ -126,6 +125,10 @@ func (c *Client) GetUserProfile() (UserProfile, error) {
 	}
 
 	return profile, nil
+}
+
+func (c *Client) Resume() error {
+	return c.simpleRequest(http.MethodPut, playEndpoint)
 }
 
 func (c *Client) Pause() error {
