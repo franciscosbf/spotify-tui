@@ -144,15 +144,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case player:
 			switch {
 			case key.Matches(msg, playerKm.left):
-				if m.selectedButton > 0 {
-					m.clickedButton = false
-					m.selectedButton--
+				m.clickedButton = false
+				if m.selectedButton--; m.selectedButton < 0 {
+					m.selectedButton = len(buttonSymbols) - 1
 				}
 			case key.Matches(msg, playerKm.right):
-				if m.selectedButton < len(buttonSymbols)-1 {
-					m.clickedButton = false
-					m.selectedButton++
-				}
+				m.clickedButton = false
+				m.selectedButton = (m.selectedButton + 1) % len(buttonSymbols)
 			case key.Matches(msg, playerKm.enter):
 				m.clickedButton = true
 
