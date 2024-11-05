@@ -273,3 +273,19 @@ func (m model) View() string {
 	return lipgloss.Place(m.width, m.height,
 		lipgloss.Center, lipgloss.Center, display)
 }
+
+func newModel(confLocation string) model {
+	client := api.NewClient()
+
+	return model{
+		help:           help.New(),
+		actions:        clientActions{client},
+		conf:           config.NewConfig(confLocation),
+		currentWarnErr: newNoWarnErrMsg(),
+		view:           initialization,
+		selectedButton: 1,
+		shuffle:        true,
+		resume:         true,
+		repeat:         track,
+	}
+}
